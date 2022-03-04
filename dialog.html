@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>GraphCMS Github User Search</title>
+
+    <style>
+      body {
+        margin: 0px;
+        font-family: 'Inter', sans-serif;
+        background: white;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      .container {
+        width: 90%;
+        max-width: 90%;
+        margin: 0px;
+      }
+      .row {
+        margin-top: 0px;
+      }
+
+      .logo > img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 300px;        
+        max-width: 40%;
+      }
+
+      h4 {
+        padding: 0px 10px;
+      }
+
+      .section_results {
+        min-height: 400px;
+        margin-bottom: 0px !important;
+      }
+      span {
+        font-size: 18px;
+        font-weight: bold;
+      }
+      p {
+        font-size: 14px;
+        color: grey;
+      }
+
+      .resultsitem:hover {
+        opacity: 0.5;
+        cursor: pointer;
+      }                
+      
+      .avatar {
+        height: auto;
+        width: auto;
+        max-width: 100px;
+        padding: 10px;
+        padding-top: 15px;
+      }
+
+      .no-pointer-events {
+        pointer-events: none;
+      }
+
+
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/@graphcms/zoid@9.0.64-alpha.1/lib/zoid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@graphcms/uix-sdk@0.3.0/dist/gcuix.umd.production.min.js"></script>
+    
+    <link rel='stylesheet' href='https://fonts.googleapis.com/icon?family=Material+Icons'>
+    <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css'>
+  </head>
+  <body>
+    <div class="logo">
+      <img src='./GitHub.png'/>
+    </div>
+
+    <div class='container'>
+      <div class='row'>
+        <div class='input-field col s10'>
+          <i class='material-icons prefix'>search</i>
+          <input id='search_input' type='text' class='validate'>
+          <label for='search_input'>Search all users & organisations</label>
+        </div>
+      </div>
+
+      <div class='row section_results'>
+        <h4 id='title'> Results</h4>
+        <div class='resultslist col s12' id="results"></div>
+      </div>      
+    </div> 
+
+    <script>
+      ((props) => {        
+        const declaration = {
+          extensionType: 'field',
+          fieldType: 'String',
+          name: 'Github User',
+          description: '',
+          features: ['FieldRenderer'],
+        };
+
+        const baseUrl = 'https://api.github.com/search/users';
+
+        async function searchUsers(query) {
+          const fullurl = `${baseUrl}?q=${query}&page=1&per_page=50`;
+          const response = await fetch(`${baseUrl}?q=${query}&page=1&per_page=50`,
+            {
+              method: 'GET',
+            }
+          );
+          const result = await response.json();
+          return result;
+        }           
+
+        function addResultsToList (data) {
+          let results = document.getElementById('results');
+          if (results === null) {
+            console.error('Error when adding results');
+            return;
+          }
+
+          for (var item = 0; item < data.length ; item++) { 
+
+            //create card
+            const cardelt = document.createElement('div');
+            cardelt.classList.add('resultsitem', 'card', 'lightgrey', 'lighten-5', 'z-depth-1');
+
+            //add vertical align wrapper
+            const wrapperelt = document.createElement('div');
+            wrapperelt.classList.add('valign-wrapper', 'no-pointer-events');
+
+            //add column with avatar
+            const columnelt1 = document.createElement('div');
+            columnelt1.classList.add('col', 's2', 'no-pointer-events');
+            const avatarelt = document.createElement('img');
+            avatarelt.src = data[item].avatar_url;
+            avatarelt.classList.add('avatar', 'circle', 'responsive-img', 'no-pointer-events');
+            columnelt1.appendChild(avatarelt)
+
+
+            //Add another column with text
+            const columnelt2 = document.createElement('div');
+            columnelt2.classList.add('col', 's10', 'no-pointer-events');
+
+            const nameelt = document.createElement('span');
+            nameelt.innerHTML = data[item].login;
+            nameelt.classList.add('title', 'no-pointer-events');
+            columnelt2.appendChild(nameelt);
+
+            let typeelt = document.createElement('p');
+            typeelt.innerText = data[item].type;
+            typeelt.classList.add('no-pointer-events');
+            columnelt2.appendChild(typeelt);
+
+            wrapperelt.appendChild(columnelt1);
+            wrapperelt.appendChild(columnelt2);
+            cardelt.appendChild(wrapperelt);
+
+            //set data and click behavior
+            cardelt.setAttribute("data-github", data[item].login);
+            cardelt.onclick = onClickResult;
+
+            results.appendChild(cardelt);
+
+          }
+        }     
+
+        function clearResultsList() {
+          let results = document.getElementById('results');
+          if (results === null) {
+            console.error('Error when clearing results');
+            return;
+          }
+          results.innerHTML = '';
+        }
+        
+        function onClickResult(event) {
+          console.log(event);
+          console.log(event.target);
+          props.onCloseDialog(event.target.getAttribute('data-github'));
+        }          
+
+        document.addEventListener('DOMContentLoaded', async () => {
+          try {
+            window.GCUIX.init({
+              declaration,
+            }).then((initialState) => {
+              props = initialState.props;
+            });
+          } catch (error) {
+            console.error('Failed to init extension:', error.message);
+            console.error('- error code:', error.code);
+          }
+
+          const searchinputelt = document.getElementById('search_input');
+          searchinputelt.addEventListener('keyup', async function(event) {
+            if (event.key === 'Enter') {
+              const query = searchinputelt.value;
+
+              clearResultsList();
+              let results;
+              response = await searchUsers(query);
+              results = response.items;
+
+              addResultsToList(results);
+            }
+          });
+          searchinputelt.focus();
+
+        });
+
+       
+
+      })();
+    </script>
+
+    <!--JavaScript at end of body for optimized loading-->
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js'></script>        
+  </body>
+</html>

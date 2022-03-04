@@ -4,55 +4,69 @@
     <meta charset='utf-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
     
-    <title>Computed Field Demo</title>
+    <title>GraphCMS Github User Search</title>
 
     <style>
       body {
         margin: 0px;
       }
-      .computed-title-basic {
+      .github-user-basic {
         width: 100%;
-        padding: 7px;
+        padding: 9px;
         font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
         color: rgb(9, 14, 36);
         font-size: 15px;
         line-height: 24px;
         min-height: 20px;
       }
-      .computed-title-table {
+      .github-user-table {
         font-size: 13px;
         line-height: 24px;         
       }
+
+      #open-dialog-button {
+        display: none;
+        margin-top: 10px;
+        cursor: pointer;
+        user-select: none;        
+        height: 32px;
+        line-height: 16px;
+        min-width: 64px;
+        padding: 0px 8px;
+        background-color: rgb(240, 242, 247);
+        box-sizing: border-box;
+        border: 2px solid;
+        border-color: transparent;
+        border-radius: 4px;
+        text-align: center;
+        font-family: 'Inter', Arial, sans-serif;
+        font-weight: 500;
+        font-size: 13px;
+        color: rgb(102, 99, 253);
+      }
+      #open-dialog-button:active {
+        border: 2px solid rgba(98, 110, 153, 0.3);
+      }      
 
     </style>
 
     <link rel='stylesheet' type='text/css' href='https://fonts.googleapis.com/css?family=Inter:300' />    
 
     <script src='https://cdn.jsdelivr.net/npm/@graphcms/zoid@9.0.64-alpha.1/lib/zoid.min.js'></script>
-    <script src='https://cdn.jsdelivr.net/npm/@graphcms/uix-sdk@0.1.2/dist/gcuix.umd.production.min.js'></script>
-    <script src='https://unpkg.com/mustache@4.2.0/mustache.min.js'></script>    
+    <script src='https://cdn.jsdelivr.net/npm/@graphcms/uix-sdk@0.3.0/dist/gcuix.umd.production.min.js'></script>
+
     <script>
-      ((props, updating) => {
+      ((props) => {
 
         const declaration = {
-          fieldConfig: {
-            MUSTACHE_INPUT: {
-              type: 'string',
-              displayName: 'Computed field template',
-              description: 'Provide a string using the Mustache template format',
-              required: true,
-            },            
-          },
           extensionType: 'field',
           fieldType: 'STRING',
-          name: 'Computed Field',
-          description: 'Create a computed title using values from other fields',
+          name: 'Github User Search',
+          description: 'Search for users on Github',
           features: ['FieldRenderer', 'TableRenderer',],
         };
 
         async function init() {
-
-          updating = false;
 
           try {
             window.GCUIX.init({
@@ -60,7 +74,7 @@
               onProps: function(newProps) {
                 props = newProps;     
 
-                renderTitle();                
+                updatePreview();                
 
               }
             }).then(async (initialState) => {
@@ -69,10 +83,9 @@
 
                 if (props.isTableCell) {
                   return;
-                }
-
-                subscribeToAllFieldChanges();
+                }      
                 
+                initDialogButton();
               }
             });
           } catch(error) {
@@ -81,53 +94,46 @@
           }
         }
 
-        async function getFieldNames() {
-          const formState = await props.form.getState();
-          const fieldnames = (formState && formState.modified) ? Object.keys(formState.modified) : [];
-          fieldnames.splice(fieldnames.indexOf(props.name),1);
-          return fieldnames;
+        function getUser() {
+          return props && props.value ? props.value : '';
         }
 
-        async function subscribeToFieldChanges(fieldname) {
-          await props.form.subscribeToFieldState(fieldname, (state) => updateTitle(), {
-            // react only to field `value` changes
-            value: true,
-          });          
+        function initDialogButton() {
+          const buttonElement = document.getElementById('open-dialog-button');
+          buttonElement.style.display = 'block';
+
+          const options = {
+            disableOverlayClick: false,
+            maxWidth: '70vw',
+            ariaLabel: 'Github User Search',
+          };
+
+          buttonElement.addEventListener('click', () => showDialog(options));
         }
 
-        async function subscribeToAllFieldChanges() {
-          const fieldnames = await getFieldNames();
-          if (fieldnames) fieldnames.forEach(item => subscribeToFieldChanges(item));
-        }
-
-        async function getFieldValues() {
-          const fieldnames = await getFieldNames();
-          if (!fieldnames) return {};
-          let values = {};
-          for (i = 0; i < fieldnames.length; i++) {
-            const fieldstate = await props.form.getFieldState(fieldnames[i]);
-            if (fieldstate) values[fieldnames[i]] = fieldstate.value;
+        async function showDialog(options) {
+          try {
+            const response = await props.openDialog('./dialog.html', options);
+            if (response === undefined) return;
+            const user = response;
+            await props.onChange(user);
+          } catch (error) {
+            console.error('Error opening dialog: ', error.code, error.message);
           }
-          
-          return values;
         }
 
-        async function renderTitle() {
-          if (!props || !props.value) return;
-          const titlefield = document.getElementById('computed-title');
-          if (props.isTableCell) titlefield.classList.add('computed-title-table');
-          titlefield.innerText = props.value;
-        }
-
-        async function updateTitle() {
-          if (updating) return;
-          updating = true;
-          const values = await getFieldValues();
-          const input = props.fieldConfig.MUSTACHE_INPUT;
-          var output = Mustache.render(input, values);
-          await props.onChange(output);
-          updating = false;
-        }
+        async function updatePreview() {
+          const username = getUser();
+          var container = document.getElementById('github-user');
+          if (props.isTableCell) container.classList.add('github-user-table');
+          container.innerText = username;
+          if (username.length) {
+            container.style.display = "block";
+          } else {
+            container.style.display = "none";
+          }
+          console.log(container);
+        }        
 
         document.addEventListener('DOMContentLoaded', init);
         
@@ -136,6 +142,7 @@
     </script>
   </head>
   <body>
-    <div id='computed-title' class='computed-title-basic'></div>
+    <div id='github-user' class='github-user-basic'></div>
+    <button id="open-dialog-button">Search Github users</button>
   </body>
 </html>
